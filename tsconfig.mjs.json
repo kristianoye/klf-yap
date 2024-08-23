@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "declaration": false,
+        "esModuleInterop": true,
+        "module": "ES6",
+        "outDir": "./dist/mjs",
+        "rootDir": "./src",
+        "strict": true,
+        "target": "ESNext"
+    },
+    "include": [
+        "./src/**/*.ts"
+    ]
+}

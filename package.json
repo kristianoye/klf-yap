@@ -1,0 +1,28 @@
+{
+  "author": "Kristian Oye <kristianoye@gmail.com>",
+  "name": "klf-core",
+  "version": "1.0.0",
+  "description": "Core constants, utilities, and typings for various KLF libraries.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc -p ./tsconfig.cjs.json & tsc -p ./tsconfig.docs.json",
+    "build:cjs": "tsc -p ./tsconfig.cjs.json",
+    "build:docs": "tsc -p ./tsconfig.docs.json",
+    "build:mjs": "tsc -p ./tsconfig.mjs.json",
+    "postinstall": "node ./index.js --install",
+    "postuninstall": "node ./index.js --uninstall",
+    "klf-copy": "node ./index.js run -- klf-copy",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "utilities"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "events": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.4.1",
+    "typescript": "^5.5.4"
+  }
+}

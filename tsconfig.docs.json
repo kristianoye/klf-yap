@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "declaration": true,
+        "declarationMap": true,
+        "emitDeclarationOnly": true,
+        "esModuleInterop": true,
+        "module": "CommonJS",
+        "outDir": "./@types",
+        "rootDir": "./src",
+        "strict": true,
+        "target": "ES2018"
+    },
+    "include": [
+        "./src/**/*.ts"
+    ]
+}

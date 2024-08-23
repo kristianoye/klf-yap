@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "esModuleInterop": true,
+        "module": "CommonJS",
+        "rootDir": "./",
+        "sourceMap": true,
+        "strict": true,
+        "target": "ES2018"
+    },
+    "exclude": [
+        "./dist/**/*.d.ts",
+        "./dist/**/*.ts",
+        "./dist/**/*.js"
+    ],
+    "include": [
+        "./**/*.ts"
+    ]
+}

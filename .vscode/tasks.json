@@ -1,0 +1,35 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "preDebugBuild",
+			"type": "shell",
+			"command": "tsc",
+			"args": [
+				"-p",
+				"tsconfig.json"
+			],
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "postDebugCleanup",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"./index.js",
+				"--",
+				"rm",
+				"-f",
+				"'/src/**/*.js'",
+				"'/src/**/*.js.map'",
+				"'/src/**/*.d.ts'"
+			]
+		}
+	]
+}
