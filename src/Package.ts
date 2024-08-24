@@ -10,10 +10,11 @@
 'use strict';
 
 import { ConfigUtil } from './util/ConfigUtil';
-import CommandBase from './command/CommandBase';
+import CommandBase from './CommandBase';
 import CommandUtil from './util/CommandUtil';
 import { ConstructorType, GenericObject } from './BaseTypes';
 import path from 'path';
+import StackUtil from './util/StackUtil';
 
 const Module = require('module');
 const Version = '1.0.0';
@@ -180,20 +181,19 @@ export interface IPackage {
     //#endregion
 }
 
-export default class Package extends CommandBase implements IPackageConfig, IPackage {
+export default class Package implements IPackageConfig, IPackage {
     /**
      * Construct a new package
      * @param filename The module the package definition resides in
      * @param config Details about this package
      */
     constructor(filename: string, config: Partial<IPackageConfig> = {}) {
-        super();
-
         this.authors = config.authors ? config.authors : [];
         this.copyright = config?.copyright ?? '(None specified)';
         this.description = ConfigUtil.get(config.description, '(No description)');
         this.exportedTypings = config.exportedTypings || [];
         this.exports = {};
+        this.filename = filename;
         this.implicitlyExportCommands = ConfigUtil.get(config.implicitlyExportCommands, true);
         this.implicitlyExportTypings = ConfigUtil.get(config.implicitlyExportTypings, true);
         this.name = ConfigUtil.get(config.name, '(No name)');
@@ -211,6 +211,7 @@ export default class Package extends CommandBase implements IPackageConfig, IPac
     exportedCommands: GenericObject<string | ConstructorType<CommandBase>> = {};
     exportedTypings: string[];
     exports: GenericObject = {};
+    filename: string = '';
     implicitlyExportCommands: boolean = true;
     implicitlyExportTypings: boolean = true;
     license: string = '(Not specified)';
@@ -270,7 +271,9 @@ export default class Package extends CommandBase implements IPackageConfig, IPac
      * @param filename The name of the file the package definition is in
      * @param setter Callback that receives the package to configure
      */
-    static define(filename: string, setter: (newPackage: IPackage) => void): typeof Package | number {
+    static define(setter: (newPackage: IPackage) => void): typeof Package | number {
+        const stack = StackUtil.getStack();
+        const filename = stack[1].getFileName()!;
         const newPackage = new Package(filename);
         const packageModule = typeof Module._cache === 'object' && Module._cache[filename];
         const cmdline = this.getCmdlineParameters(filename);

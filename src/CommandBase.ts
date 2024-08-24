@@ -7,7 +7,7 @@
  */
 'use strict';
 
-import CommandParser, { ICommandParser, ICommandParams } from './CommandParser';
+import CommandParser, { ICommandParser, ICommandParams } from './command/CommandParser';
 
 export { CommandParser, ICommandParams, ICommandParser };
 

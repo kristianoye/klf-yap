@@ -7,7 +7,7 @@
  */
 'use strict';
 
-import CommandBase, { ICommand, ICommandParams } from "../command/CommandBase";
+import CommandBase, { ICommandParams } from "../CommandBase";
 
 const Authors = [
     'Kristian Oye <kristianoye@gmail.com'

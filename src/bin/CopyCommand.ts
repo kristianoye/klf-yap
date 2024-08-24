@@ -7,7 +7,7 @@
  */
 'use strict';
 
-import CommandBase, { ICommandParams } from "../command/CommandBase";
+import CommandBase, { ICommandParams } from "../CommandBase";
 
 export enum CopyFlags {
     /** Use default behavior */

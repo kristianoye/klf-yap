@@ -7,7 +7,7 @@
  */
 'use strict';
 
-import CommandBase from '../command/CommandBase';
+import CommandBase from '../CommandBase';
 import { ConstructorType, GenericObject } from '../BaseTypes';
 
 export interface ICommandUtility {

@@ -18,7 +18,7 @@
 			}
 		},
 		{
-			"label": "postDebugCleanup",
+			"label": "postDebugCleanupX",
 			"type": "shell",
 			"command": "node",
 			"args": [
@@ -29,6 +29,16 @@
 				"'/src/**/*.js'",
 				"'/src/**/*.js.map'",
 				"'/src/**/*.d.ts'"
+			]
+		},
+		{
+			"label": "postDebugCleanup",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"& { $paths = '.\\src\\*.js.map, .\\src\\*.js' -split ', '; Get-ChildItem -Path $paths -Recurse | Remove-Item -Force }"
 			]
 		}
 	]
