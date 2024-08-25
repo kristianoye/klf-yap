@@ -5,8 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const FileUtil_1 = __importDefault(require("./src/util/FileUtil"));
 try {
-    FileUtil_1.default.fsqCallback('./src/**/*.js', files => {
-        console.log(`Found ${files.length} matching files`);
+    FileUtil_1.default.fsq('./src/**/*.js', { bigint: true }, (err, file) => {
+        console.log(`Found ${file} matching files`);
     });
 }
 catch (err) {

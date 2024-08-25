@@ -13,7 +13,36 @@ export type RegexScoringInfo = { group: string, reclass: string, capture: string
  * Provides some path-related utilities
  * @since 1.0.0
  */
-export class RegExUtil {
+export default class RegExUtil {
+    /**
+     * Convert a globular expression into a regex
+     * @param input A file globular expression
+     */
+    static createFileRegex(input: string, flags: { exact?: boolean, endsWith?: boolean, startsWith?: boolean } = {}): RegExp {
+        //  Change dots into literal dots
+        let s = input.replace(/\./g, '\\.');
+        s = s.replace(/\?/g, '.');
+        s = s.replace(/\*/g, '.*');
+
+        let n = s.indexOf('['),
+            x = s.indexOf(']');
+        if (n > -1 || x > -1) {
+            while (true) {
+                if (x > n) throw new Error(`Bad range expression in pattern: ${input}`);
+                else if (x === -1) throw new Error(`Unclosed range expression in pattern: ${input}`);
+                n = s.indexOf('[', n + 1);
+                x = s.indexOf(']', x + 1);
+                if (n === -1 && x === -1) break;
+            }
+        }
+        if (flags.exact === true) s = '^' + s + '$';
+        else {
+            if (flags.startsWith === true) s = '^' + s;
+            if (flags.endsWith === true) s = s + '$';
+        }
+        return new RegExp(s);
+    }
+
     /**
      * Parse a regex ... needs work
      * @param regex The expression to parse
@@ -88,4 +117,3 @@ export class RegExUtil {
     }
 }
 
-module.exports = RegExUtil;

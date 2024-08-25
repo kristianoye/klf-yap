@@ -1,9 +1,9 @@
 import Package from "./src/Package";
-import FileUtil from "./src/util/FileUtil";
+import FileUtil, { IFileSystemQuery } from "./src/util/FileUtil";
 
 try {
-    FileUtil.fsqCallback('./src/**/*.js', files => {
-        console.log(`Found ${files.length} matching files`);
+    FileUtil.fsq('./src/**/*.js', <IFileSystemQuery<bigint>>{ bigint: true }, (err, file) => {
+        console.log(`Found ${file} matching files`);
     });
 }
 catch (err) {
