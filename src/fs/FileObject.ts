@@ -9,7 +9,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { FileObjectType, IFileSystemQuery, IFileObject } from './FileTypedefs';
+import { FileObjectType, IFileSystemQuery, IFileObject, IReadFilesQuery, MatchCriteriaCallback, MatchSimpleCriteriaCallback } from './FileTypedefs';
 import FileContentSearcher, { FileContentMatchCallback } from './FileContentSearcher';
 
 /**
@@ -26,6 +26,8 @@ export default class FileObject<TNumType extends number | bigint> implements IFi
             let n = this.fullPath.lastIndexOf(path.sep);
             this.name = this.baseName = this.fullPath.slice(n + 1);
         }
+        this.linkTarget = details.linkTarget;
+        this.linkTargetName = details.linkTargetName;
         this.parent = details.parent;
         this.parentPath = path.resolve(this.fullPath, '..');
         this.prefix = details.prefix ?? '';
@@ -38,15 +40,22 @@ export default class FileObject<TNumType extends number | bigint> implements IFi
                 this.baseName = parts[0];
             }
         }
+        this.depth = FileObject.getDepth(this.fullPath);
     }
 
     baseName: string = '';
 
     children: IFileObject<TNumType>[] = [];
 
+    readonly depth: number = 0;
+
     extension: string = '';
 
     fullPath: string;
+
+    linkTarget?: IFileObject<TNumType> = undefined;
+
+    linkTargetName?: string = undefined;
 
     name: string;
 
@@ -67,6 +76,13 @@ export default class FileObject<TNumType extends number | bigint> implements IFi
     }
 
     contains(expr: string | RegExp, onMatch: FileContentMatchCallback<TNumType>): void {
+    }
+
+    /** Get the depth of a path */
+    static getDepth(pathLike: string): number {
+        let d = 0;
+        for (const c of pathLike) d += c === path.sep ? 1 : 0;
+        return d;
     }
 
     isFile(): boolean {
@@ -106,38 +122,61 @@ export default class FileObject<TNumType extends number | bigint> implements IFi
         return this.stats.isSocket();
     }
 
-    matchCriteria(criteria: IFileSystemQuery<TNumType>, callback: (result: boolean, file: IFileObject<TNumType>) => void) {
-        if (criteria.maxAccessTime && this.atimeMs > criteria.maxAccessTime) return callback(false, this);
-        else if (criteria.minAccessTime && this.atimeMs < criteria.minAccessTime) return callback(false, this);
-        else if (criteria.maxChangeTime && this.ctimeMs > criteria.maxChangeTime) return callback(false, this);
-        else if (criteria.minChangeTime && this.ctimeMs < criteria.minChangeTime) return callback(false, this);
-        else if (criteria.maxCreateTime && this.birthtimeMs > criteria.maxCreateTime) return callback(false, this);
-        else if (criteria.minCreateTime && this.birthtimeMs < criteria.minCreateTime) return callback(false, this);
-        else if (Array.isArray(criteria.isType) && criteria.isType.indexOf(this.typeName) === -1) return callback(false, this);
-        else if (typeof criteria.endsWith === 'string' && !this.name.endsWith(criteria.endsWith)) return callback(false, this);
-        else if (criteria.endsWith && criteria.endsWith instanceof RegExp && !criteria.endsWith.test(this.name)) return callback(false, this);
-        else if (typeof criteria.startsWith === 'string' && !this.name.startsWith(criteria.startsWith)) return callback(false, this);
-        else if (criteria.startsWith && criteria.startsWith instanceof RegExp && !criteria.startsWith.test(this.name)) return callback(false, this);
+    matchCriteria(criteria: Partial<IFileSystemQuery<TNumType>>, callback: MatchCriteriaCallback<TNumType>): void {
+        this.matchSimpleCriteria(criteria, (success: boolean, file) => {
+            if (success) {
+                if (criteria.maxAccessTime && this.atimeMs > criteria.maxAccessTime) return callback(false, this);
+                else if (criteria.minAccessTime && this.atimeMs < criteria.minAccessTime) return callback(false, this);
+                else if (criteria.maxChangeTime && this.ctimeMs > criteria.maxChangeTime) return callback(false, this);
+                else if (criteria.minChangeTime && this.ctimeMs < criteria.minChangeTime) return callback(false, this);
+                else if (criteria.maxCreateTime && this.birthtimeMs > criteria.maxCreateTime) return callback(false, this);
+                else if (criteria.minCreateTime && this.birthtimeMs < criteria.minCreateTime) return callback(false, this);
+                else if (Array.isArray(criteria.isType) && criteria.isType.indexOf(this.typeName) === -1) return callback(false, this);
 
-        //  TODO: Content scanning, etc
-        if (criteria.contains && criteria.contains instanceof RegExp) {
-            if (this.isFile()) {
-                const searcher = new FileContentSearcher(this, criteria.contains, criteria.encoding);
-                const result = searcher.next();
+                if (criteria.contains && criteria.contains instanceof RegExp) {
+                    if (this.isFile()) {
+                        const searcher = new FileContentSearcher(this, criteria.contains, criteria.encoding);
+                        const result = searcher.next();
 
-                if (!result)
-                    return callback(false, this);
-                if (typeof criteria.onContains === 'function') {
-                    let maxMatches = typeof criteria.maxMatches === 'number' && criteria.maxMatches > 0 && criteria.maxMatches || Number.MAX_SAFE_INTEGER;
+                        if (!result)
+                            return callback(false, this);
 
-                    while (result.done === false) {
-                        if (result.value) criteria.onContains(result.value);
-                        if (--maxMatches < 0) break;
+                        if (typeof criteria.onContains === 'function') {
+                            let maxMatches = typeof criteria.maxMatches === 'number' && criteria.maxMatches > 0 && criteria.maxMatches || Number.MAX_SAFE_INTEGER;
+
+                            while (result.done === false) {
+                                if (result.value) criteria.onContains(result.value);
+                                if (--maxMatches < 0) break;
+                            }
+                        }
                     }
                 }
+                return callback(true, this);
             }
+            return callback(false, this);
+        });
+    }
+
+    /**
+     * Evaluate this file against the criteria passed by the user
+     * @param criteria The criteria for our search
+     * @param callback The callback to execute with the result
+     * @returns Returns nothing
+     */
+    matchSimpleCriteria(criteria: Partial<IReadFilesQuery<TNumType>>, callback: MatchSimpleCriteriaCallback<TNumType>): void {
+        if (this.isFile()) {
+            const minSize = criteria.minSize as TNumType, maxSize = criteria.maxSize as TNumType;
+
+            if (minSize && this.size < minSize) return callback(false, this, `minSize: ${this.fullPath} size ${this.size} < ${minSize}`);
+            else if (maxSize && this.size > maxSize) return callback(false, this, `maxSize: ${this.fullPath} size ${this.size} > ${maxSize}`);
         }
-        callback(true, this);
+        if (criteria.minDepth && this.depth < criteria.minDepth) return callback(false, this, `minDepth: ${this.fullPath} depth ${this.depth} < ${criteria.minDepth}`);
+        else if (criteria.maxDepth && this.depth > criteria.maxDepth) return callback(false, this, `maxDepth: ${this.fullPath} depth ${this.depth} > ${criteria.maxDepth}`);
+        else if (typeof criteria.endsWith === 'string' && !this.name.endsWith(criteria.endsWith)) return callback(false, this, `endsWith: ${this.fullPath} DOES NOT MATCH ${criteria.endsWith}`);
+        else if (criteria.endsWith && criteria.endsWith instanceof RegExp && !criteria.endsWith.test(this.name)) return callback(false, this, `endsWith: ${this.fullPath} DOES NOT MATCH ${criteria.endsWith}`);
+        else if (typeof criteria.startsWith === 'string' && !this.name.startsWith(criteria.startsWith)) return callback(false, this, `startsWith: ${this.fullPath} DOES NOT MATCH ${criteria.startsWith}`);
+        else if (criteria.startsWith && criteria.startsWith instanceof RegExp && !criteria.startsWith.test(this.name)) return callback(false, this, `startsWith: ${this.fullPath} DOES NOT MATCH ${criteria.startsWith}`);
+        else return callback(true, this);
     }
 
     readFile(callback: (error: Error | string | undefined | null, content: string) => void, encoding: BufferEncoding = 'utf8'): void {
@@ -149,7 +188,15 @@ export default class FileObject<TNumType extends number | bigint> implements IFi
     }
 
     toString(): string {
-        return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath}]`;
+        if (this.isSymbolicLink())
+            return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath} => ${this.linkTargetName}]`;
+        else if (this.isDirectory())
+            if (this.isEmpty())
+                return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath}; empty] file(s)`;
+            else
+                return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath}; ${this.children.length}] file(s)`;
+        else
+            return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath}]`;
     }
 
     get typeName(): FileObjectType {

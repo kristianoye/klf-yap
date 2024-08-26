@@ -1,9 +1,9 @@
 import Package from "./src/Package";
-import FileUtil, { IFileSystemQuery } from "./src/util/FileUtil";
+import FileUtil from "./src/util/FileUtil";
 
 try {
-    FileUtil.fsq('./src/**/*.js', { contains: /Kristian/, minSize: 100 }, (err, file) => {
-        if (err) console.log(`Error: ${err.stack}`);
+    FileUtil.fsq('./src/*.ts', { contains: /Kristian Oye/, ignoreCase: true, minSize: '1Kb', followLinks: true, recursive: true }, (err, file) => {
+        if (err) console.log(`Error: ${err}`);
         if (file) console.log(`File ${file.fullPath} matched`);
     });
 }
