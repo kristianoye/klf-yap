@@ -2,8 +2,9 @@ import Package from "./src/Package";
 import FileUtil, { IFileSystemQuery } from "./src/util/FileUtil";
 
 try {
-    FileUtil.fsq('./src/**/*.js', <IFileSystemQuery<bigint>>{ bigint: true }, (err, file) => {
-        console.log(`Found ${file} matching files`);
+    FileUtil.fsq('./src/**/*.js', { contains: /Kristian/, minSize: 100 }, (err, file) => {
+        if (err) console.log(`Error: ${err.stack}`);
+        if (file) console.log(`File ${file.fullPath} matched`);
     });
 }
 catch (err) {
