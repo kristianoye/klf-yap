@@ -14,6 +14,7 @@ import FileObject from "../fs/FileObject";
 import RegExUtil from "./RegExUtil";
 import path from 'path';
 import fs from 'fs';
+import FileWorker from '../fs/FileWorker';
 
 /** Used to split pathlike expressions */
 const rePathSplitter: RegExp = path.sep === path.posix.sep ? /\// : new RegExp(`[\\${path.sep}|${path.posix.sep}]`);
@@ -196,9 +197,7 @@ class FileUtilImpl implements IFileUtil {
                 callbackBuffered(error, new FileObjectCollection<TNumType>(), query);
             return this;
         };
-        const results: FileObjectCollection<TNumType> = new FileObjectCollection<TNumType>();
         const fileObject: FileObject<TNumType> | undefined = typeof pathLikeOrFileObject === 'object' && pathLikeOrFileObject as FileObject<TNumType> || undefined;
-        const bigint = query.bigint === true;
         let pathLike: string = typeof pathLikeOrFileObject === 'string' ? pathLikeOrFileObject : fileObject?.fullPath!;
 
         if (!path.isAbsolute(pathLike)) {
@@ -227,11 +226,15 @@ class FileUtilImpl implements IFileUtil {
                                 if (rightExpr.indexOf('**') > -1)
                                     return sendSingleResult(`Expression ${pathLike} cannot contain more than one globstar`);
 
-                                this.readPathlike(leftExpr, (err: ErrorType, file: IFileObject<TNumType> | undefined, criteria: IReadFilesQuery<TNumType> | undefined) => {
-                                    file?.matchSimpleCriteria(criteria!, (isMatch, file) => {
-                                        if (isMatch && file) sendSingleResult(err, file as FileObject<TNumType>);
-                                    });
-                                }, { ...query, buffer: false, recursive: true, endsWith: rightPattern });
+                                query.worker.enqueue(() => {
+                                    this.readPathlike(leftExpr, (err: ErrorType, file: IFileObject<TNumType> | undefined, criteria: IReadFilesQuery<TNumType> | undefined) => {
+                                        query.worker.enqueue(() => {
+                                            file?.matchSimpleCriteria(criteria!, (isMatch, file) => {
+                                                if (isMatch && file) sendSingleResult(err, file as FileObject<TNumType>);
+                                            });
+                                        });
+                                    }, { ...query, buffer: false, recursive: true, endsWith: rightPattern });
+                                });
                             }
                             else
                                 return sendSingleResult(`Expression ${pathLike} is invalid; Globstar must appear by itself, not ${part}`);
@@ -240,23 +243,30 @@ class FileUtilImpl implements IFileUtil {
                             const rightExpr = parts.slice(index).join(path.sep);
                             const rightPattern = RegExUtil.createFileRegex(rightExpr, { endsWith: true });
 
-                            this.readPathlike(leftExpr, (err: ErrorType, file: IFileObject<TNumType> | undefined, criteria: IReadFilesQuery<TNumType> | undefined) => {
-                                file?.matchSimpleCriteria(criteria!, (isMatch, file) => {
-                                    if (file) {
-                                        if (isMatch) sendSingleResult(err, file as FileObject<TNumType>);
-                                        if (file.isDirectory()) {
-                                            for (const child of file.children!) {
-                                                child?.matchSimpleCriteria(criteria!, (isChildMatch, childFile, reason) => {
-                                                    if (isChildMatch && childFile)
-                                                        sendSingleResult(undefined, childFile as FileObject<TNumType>);
-                                                    else if (reason)
-                                                        console.log(reason);
-                                                });
+                            query.worker.enqueue(() => {
+                                this.readPathlike(leftExpr, (err: ErrorType, file: IFileObject<TNumType> | undefined, criteria: IReadFilesQuery<TNumType> | undefined) => {
+                                    query.worker.enqueue(() => {
+                                        file?.matchSimpleCriteria(criteria!, (isMatch, file) => {
+                                            if (file) {
+                                                if (isMatch)
+                                                    sendSingleResult(err, file as FileObject<TNumType>);
+                                                if (file.isDirectory()) {
+                                                    for (const child of file.children!) {
+                                                        query.worker.enqueue(() => {
+                                                            child?.matchSimpleCriteria(criteria!, (isChildMatch, childFile, reason) => {
+                                                                if (isChildMatch && childFile)
+                                                                    sendSingleResult(undefined, childFile as FileObject<TNumType>);
+                                                                else if (reason)
+                                                                    console.log(reason);
+                                                            });
+                                                        });
+                                                    }
+                                                }
                                             }
-                                        }
-                                    }
-                                });
-                            }, { ...query, buffer: false, endsWith: rightPattern });
+                                        });
+                                    });
+                                }, { ...query, buffer: false, endsWith: rightPattern });
+                            });
                         }
                     }
                 }
@@ -288,79 +298,100 @@ class FileUtilImpl implements IFileUtil {
         return this;
     }
 
+    /**
+     * Search the path for files matching our criteria
+     * @param pathLike The path to stat
+     * @param callback The callback to execute when the stat process is complete
+     * @param queryIn The criteria we are tring to match
+     * @returns 
+     */
     statPathlike<TNumType extends number | bigint>(pathLike: string, callback: FSQObjectCallback<TNumType>, queryIn: Partial<IReadFilesQuery<TNumType>> = {}): void {
+        const query = createCompleteRPL(queryIn);
+
         try {
             const fullPath = pathLike;
-            const query = createCompleteRPL(queryIn);
 
             if (typeof fullPath === 'string')
-                fs.lstat(fullPath, { bigint: query.bigint }, (err, stats) => {
-                    if (err && query.throwErrors)
-                        throw err;
-                    else if (stats.isSymbolicLink()) {
-                        fs.readlink(fullPath, { encoding: query.encoding || 'utf8' }, (err, linkTargetName) => {
-                            const linkObj = new FileObject<TNumType>(stats as fs.StatsBase<TNumType>, { fullPath, linkTargetName });
-                            const linkTargetResolved = path.resolve(linkObj.parentPath, linkTargetName);
+                query.worker.enqueue(() => {
+                    fs.lstat(fullPath, { bigint: query.bigint }, (err, stats) => {
+                        if (err && query.throwErrors)
+                            throw err;
+                        else if (stats.isSymbolicLink()) {
+                            query.worker.enqueue(() => {
+                                fs.readlink(fullPath, { encoding: query.encoding || 'utf8' }, (err, linkTargetName) => {
+                                    const linkObj = new FileObject<TNumType>(stats as fs.StatsBase<TNumType>, { fullPath, linkTargetName });
+                                    const linkTargetResolved = path.resolve(linkObj.parentPath, linkTargetName);
 
-                            if (query.followLinks) {
-                                this.statPathlike<TNumType>(linkTargetResolved, (err, linkTarget) => {
-                                    linkObj.linkTarget = linkTarget;
-                                    callback(err, linkObj);
-                                }, query);
-                            }
-                            else
-                                return callback(err, linkObj);
-                        });
-                    }
-                    else if (stats.isDirectory()) {
-                        const dir = new FileObject<TNumType>(stats as fs.StatsBase<TNumType>, { fullPath });
-
-                        fs.readdir(fullPath, { encoding: 'utf8' }, (err, stats) => {
-                            let untilComplete = stats.length;
-
-                            const addChild = (child: IFileObject<TNumType> | undefined): IFileObject<TNumType> | undefined => {
-                                if (child) {
-                                    child.parent = dir;
-                                    dir.addChild(child);
-                                }
-                                if (--untilComplete === 0) callback(undefined, dir);
-                                return child;
-                            };
-                            for (const name of stats) {
-                                const childFullPath = path.join(fullPath, name);
-
-                                this.statPathlike<TNumType>(childFullPath, (err, childStats) => {
-                                    if (err && query.throwErrors)
-                                        throw err;
-                                    else if (childStats) {
-                                        const newChild = new FileObject<TNumType>(childStats, { parent: dir, name, fullPath: childFullPath });
-
-                                        if (query.recursive === true && newChild.isDirectory()) {
-                                            this.statPathlike<TNumType>(childFullPath, (err, newChildDirectory) => {
-                                                if (newChildDirectory) addChild(newChildDirectory);
-                                                else addChild(undefined);
+                                    if (query.followLinks) {
+                                        query.worker.enqueue(() => {
+                                            this.statPathlike<TNumType>(linkTargetResolved, (err, linkTarget) => {
+                                                linkObj.linkTarget = linkTarget;
+                                                callback(err, linkObj);
                                             }, query);
-                                        }
-                                        else
-                                            return addChild(newChild);
+                                        })
                                     }
-                                    else return addChild(undefined);
-                                }, query);
-                            }
-                        });
-                    }
-                    else {
-                        const newChild = new FileObject<TNumType>(stats as fs.StatsBase<TNumType>, { fullPath });
-                        if (err)
-                            callback(err, newChild);
-                        else
-                            callback(undefined, newChild);
-                    }
+                                    else
+                                        return query.worker.enqueue(() => callback(err, linkObj));
+                                });
+                            });
+                        }
+                        else if (stats.isDirectory()) {
+                            const dir = new FileObject<TNumType>(stats as fs.StatsBase<TNumType>, { fullPath });
+
+                            fs.readdir(fullPath, { encoding: 'utf8' }, (err, stats) => {
+                                let untilComplete = stats.length;
+
+                                const addChild = (child: IFileObject<TNumType> | undefined): IFileObject<TNumType> | undefined => {
+                                    if (child) {
+                                        child.parent = dir;
+                                        dir.addChild(child);
+                                    }
+                                    if (--untilComplete === 0) callback(undefined, dir);
+                                    return child;
+                                };
+                                for (const name of stats) {
+                                    query.worker.enqueue(() => {
+                                        const childFullPath = path.join(fullPath, name);
+
+                                        this.statPathlike<TNumType>(childFullPath, (err, childStats) => {
+                                            if (err && query.throwErrors)
+                                                throw err;
+                                            else if (childStats) {
+                                                const newChild = new FileObject<TNumType>(childStats, { parent: dir, name, fullPath: childFullPath });
+
+                                                if (query.recursive === true && newChild.isDirectory()) {
+                                                    query.worker.enqueue(() => {
+                                                        this.statPathlike<TNumType>(childFullPath, (err, newChildDirectory) => {
+                                                            if (newChildDirectory) addChild(newChildDirectory);
+                                                            else addChild(undefined);
+                                                        }, query);
+                                                    });
+                                                }
+                                                else
+                                                    return addChild(newChild);
+                                            }
+                                            else return addChild(undefined);
+                                        }, query);
+                                    });
+                                }
+                            });
+                        }
+                        else {
+                            query.worker.enqueue(() => {
+                                const newChild = new FileObject<TNumType>(stats as fs.StatsBase<TNumType>, { fullPath });
+                                if (err)
+                                    callback(err, newChild);
+                                else
+                                    callback(undefined, newChild);
+                            });
+                        }
+                    });
                 });
-            else return callback(new Error(`Invalid pathLike: ${pathLike}`), undefined);
+            else
+                query.worker.enqueue(() => callback(new Error(`Invalid pathLike: ${pathLike}`), undefined));
         }
         catch (err) {
-            callback(err, undefined);
+            query.worker.enqueue(() => callback(err, undefined));
         }
     }
 

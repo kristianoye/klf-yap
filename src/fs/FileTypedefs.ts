@@ -9,6 +9,7 @@
 
 import fs from 'fs';
 import { FileContentMatchCallback } from './FileContentSearcher';
+import FileWorker from './FileWorker';
 
 /** The possible types of object we can/should expect */
 export type FileObjectType = 'file'
@@ -114,7 +115,11 @@ export interface IReadFilesQuery<TNumType extends number | bigint> {
     /** One or more pathlike expressions */
     expr: string[];
 
+    /** Should we follow links? */
     followLinks: boolean;
+
+    /** Maximum number of concurrent workers */
+    maxConcurrency: number;
 
     /** How deep down the rabbit hole shall we go? */
     maxDepth: number;
@@ -139,6 +144,9 @@ export interface IReadFilesQuery<TNumType extends number | bigint> {
 
     /** Should we throw errors, like not found, etc? */
     throwErrors: boolean;
+
+    /** For internal use */
+    worker: FileWorker;
 }
 
 /**
@@ -176,6 +184,9 @@ export interface IFileSystemQuery<TNumType extends number | bigint> extends IRea
 
     /** Minimum creation time to consider */
     minCreateTime?: TNumType;
+
+    /** Minimum times a contains pattern must matchs */
+    minMatches?: TNumType
 
     /** Callback that executes when the content is matched */
     onContains?: FileContentMatchCallback<TNumType>;
@@ -227,13 +238,14 @@ export const createCompleteRPL = <TNumType extends number | bigint>(queryIn: Par
         return spec;
     }
 
-    return {
+    const result = {
         ...queryIn,
         bigint: queryIn.bigint === true,
         buffer: queryIn.buffer === true,
         encoding: queryIn.encoding ?? 'utf8',
         expr: Array.isArray(queryIn.expr) && queryIn.expr || [],
         followLinks: queryIn.followLinks === true,
+        maxConcurrency: typeof queryIn.maxConcurrency === 'number' && queryIn.maxConcurrency > 0 && queryIn.maxConcurrency || Number.MAX_SAFE_INTEGER,
         maxDepth: typeof queryIn.maxDepth === 'number' && queryIn.maxDepth > 0 && queryIn.maxDepth || Number.MAX_SAFE_INTEGER,
         minDepth: typeof queryIn.minDepth === 'number' && queryIn.minDepth > 0 && queryIn.minDepth || 0,
         maxSize: expandSizeStrings(queryIn.maxSize),
@@ -241,5 +253,7 @@ export const createCompleteRPL = <TNumType extends number | bigint>(queryIn: Par
         recursive: queryIn.recursive === true,
         singleFS: queryIn.singleFS === true,
         throwErrors: typeof queryIn.throwErrors === 'boolean' ? queryIn.throwErrors : true,
+        worker: typeof queryIn.worker === 'object' && queryIn.worker instanceof FileWorker && queryIn.worker || new FileWorker(queryIn.maxConcurrency)
     }
+    return result;
 }

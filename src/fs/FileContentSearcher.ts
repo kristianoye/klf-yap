@@ -49,14 +49,47 @@ export type FileContentSearchResult<TNumType extends number | bigint> = {
     value: FileContentMatch<TNumType> | null
 }
 
+export type FileContentSearchOptions = {
+    /** Allows . to match newlines. */
+    dotAll?: boolean;
+
+    /** Buffer encoding type to use when reading the source file */
+    encoding?: BufferEncoding;
+
+    /** Ignore casing when matching */
+    ignoreCase?: boolean;
+
+    /** Rewrite search pattern to ignore whitespace between words */
+    ignoreWhitespace?: boolean;
+
+    /** Treat beginning and end assertions (^ and $) as working over multiple lines. In other words, match the beginning or end of each line (delimited by \n or \r), not only the very beginning or end of the whole input string. */
+    multiline?: boolean;
+
+    /** Treat pattern as a sequence of Unicode code points. */
+    unicode?: boolean;
+
+    /** An upgrade to the u flag that enables set notation in character classes as well as properties of strings. */
+    unicodeSets?: boolean;
+}
+
 export default class FileContentSearcher<TNumType extends number | bigint> {
-    constructor(file: IFileObject<TNumType>, criteria: string | RegExp, encoding: BufferEncoding = 'utf8') {
+    constructor(file: IFileObject<TNumType>, criteria: string | RegExp, options: FileContentSearchOptions = { encoding: 'utf8', ignoreCase: false, ignoreWhitespace: false }) {
         const flags = ['g'];
-        if (typeof criteria === 'string')
-            this.criteria = new RegExp(criteria, 'g');
+
+        if (options.dotAll === true) flags.push('s');
+        if (options.ignoreCase === true) flags.push('i');
+        if (options.multiline === true) flags.push('m');
+        if (options.unicodeSets === true) flags.push('v');
+        else if (options.unicode === true) flags.push('u');
+
+        if (typeof criteria === 'string') {
+            const pattern = options.ignoreWhitespace ? criteria.replace(/\s+/, '\\s+') : criteria;
+            this.criteria = new RegExp(pattern, flags.join(''));
+        }
         else
-            this.criteria = new RegExp(criteria, 'g');
-        this.encoding = encoding;
+            this.criteria = new RegExp(criteria, flags.join(''));
+
+        this.encoding = options.encoding || 'utf8';
         this.file = file;
     }
 
@@ -68,23 +101,32 @@ export default class FileContentSearcher<TNumType extends number | bigint> {
 
     private file: IFileObject<TNumType>;
 
+    private isFresh: boolean = true;
+
     private lastMatch: RegExpMatchArray | null = null;
 
     private position: FileContentMatchPosition = { line: 0, col: 0, index: 0, filename: '' };
 
-    next(): Readonly<FileContentSearchResult<TNumType>> | false {
+    next(): Readonly<FileContentSearchResult<TNumType>> {
         if (!this.content) {
             this.content = this.file.readFileSync(this.encoding);
+        }
+        if (this.isFresh) {
             this.position = { line: 1, col: 0, index: 0, filename: this.file.fullPath };
             this.criteria.lastIndex = -1;
             this.lastMatch = this.criteria.exec(this.content);
-
-            if (this.lastMatch == null) {
-                return false
-            }
+            this.isFresh = false;
         }
 
         const lastMatch = this.lastMatch;
+
+        if (lastMatch == null) {
+            return Object.freeze({
+                done: true,
+                value: null
+            })
+        }
+
         if (lastMatch != null && typeof lastMatch !== 'undefined' && typeof lastMatch.index === 'number') {
             const newPos = { ...this.position };
             for (let i = this.position.index, max = lastMatch.index + 1; i < max; i++) {
@@ -94,6 +136,7 @@ export default class FileContentSearcher<TNumType extends number | bigint> {
                 }
                 else
                     newPos.col++;
+                newPos.index++;
             }
             this.position = newPos;
         }
@@ -104,15 +147,13 @@ export default class FileContentSearcher<TNumType extends number | bigint> {
                 groups: lastMatch,
                 position: this.position
             },
-            done: this.lastMatch === null
+            done: lastMatch == null
         }
 
         return Object.freeze(result);
     }
 
     reset() {
-        this.content = '';
-        this.criteria.lastIndex = -1;
-        this.position = { col: 0, line: 0, index: 0, filename: this.file.fullPath };
+        this.isFresh = true;
     }
 }

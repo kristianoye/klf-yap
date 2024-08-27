@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { FileObjectType, IFileSystemQuery, IFileObject, IReadFilesQuery, MatchCriteriaCallback, MatchSimpleCriteriaCallback } from './FileTypedefs';
 import FileContentSearcher, { FileContentMatchCallback } from './FileContentSearcher';
+import { mainModule } from 'process';
 
 /**
  * Default implementation of the IFileObject interface
@@ -90,6 +91,9 @@ export default class FileObject<TNumType extends number | bigint> implements IFi
     }
 
     isDirectory(): boolean {
+        if (this.isSymbolicLink() && this.linkTarget) {
+            if (this.linkTarget.isDirectory()) return true;
+        }
         return this.stats.isDirectory();
     }
 
@@ -122,33 +126,42 @@ export default class FileObject<TNumType extends number | bigint> implements IFi
         return this.stats.isSocket();
     }
 
+    /**
+     * Check to see if this file object matches the given criteria.
+     * @param criteria The criteria used to evaluate this file object
+     * @param callback THe callback that receives the result of the evaluation
+     */
     matchCriteria(criteria: Partial<IFileSystemQuery<TNumType>>, callback: MatchCriteriaCallback<TNumType>): void {
         this.matchSimpleCriteria(criteria, (success: boolean, file) => {
             if (success) {
-                if (criteria.maxAccessTime && this.atimeMs > criteria.maxAccessTime) return callback(false, this);
-                else if (criteria.minAccessTime && this.atimeMs < criteria.minAccessTime) return callback(false, this);
-                else if (criteria.maxChangeTime && this.ctimeMs > criteria.maxChangeTime) return callback(false, this);
-                else if (criteria.minChangeTime && this.ctimeMs < criteria.minChangeTime) return callback(false, this);
-                else if (criteria.maxCreateTime && this.birthtimeMs > criteria.maxCreateTime) return callback(false, this);
-                else if (criteria.minCreateTime && this.birthtimeMs < criteria.minCreateTime) return callback(false, this);
-                else if (Array.isArray(criteria.isType) && criteria.isType.indexOf(this.typeName) === -1) return callback(false, this);
+                if (criteria.maxAccessTime && this.atimeMs > criteria.maxAccessTime) return callback(false, this, `maxAccessTime: ${this.fullPath} atime ${this.atimeMs} > ${criteria.maxAccessTime}`);
+                else if (criteria.minAccessTime && this.atimeMs < criteria.minAccessTime) return callback(false, this, `minAccessTime: ${this.fullPath} atime ${this.atimeMs} < ${criteria.minAccessTime}`);
+                else if (criteria.maxChangeTime && this.ctimeMs > criteria.maxChangeTime) return callback(false, this, `maxChangeTime: ${this.fullPath} ctime ${this.ctimeMs} > ${criteria.maxChangeTime}`);
+                else if (criteria.minChangeTime && this.ctimeMs < criteria.minChangeTime) return callback(false, this, `minChangeTime: ${this.fullPath} ctime ${this.ctimeMs} < ${criteria.minChangeTime}`);
+                else if (criteria.maxCreateTime && this.birthtimeMs > criteria.maxCreateTime) return callback(false, this, `maxCreateTime: ${this.fullPath} atime ${this.birthtimeMs} > ${criteria.maxCreateTime}`);
+                else if (criteria.minCreateTime && this.birthtimeMs < criteria.minCreateTime) return callback(false, this, `minCreateTime: ${this.fullPath} atime ${this.birthtimeMs} < ${criteria.minCreateTime}`);
+                else if (Array.isArray(criteria.isType) && criteria.isType.indexOf(this.typeName) === -1) return callback(false, this, `isType: ${this.fullPath} type ${this.typeName} NOT IN ${criteria.isType.join(', ')}`);
 
                 if (criteria.contains && criteria.contains instanceof RegExp) {
                     if (this.isFile()) {
-                        const searcher = new FileContentSearcher(this, criteria.contains, criteria.encoding);
-                        const result = searcher.next();
+                        let maxMatches = typeof criteria.maxMatches === 'number' && criteria.maxMatches > 0 && criteria.maxMatches || Number.MAX_SAFE_INTEGER;
+                        let minMatches = typeof criteria.minMatches === 'number' && criteria.minMatches > 0 && criteria.minMatches || 1;
+                        const searcher = new FileContentSearcher(this, criteria.contains, { ...criteria });
+                        let result = searcher.next();
+                        let matchCount = 0;
 
-                        if (!result)
-                            return callback(false, this);
+                        if (result.value === null)
+                            return callback(false, this, `minMatches: ${this.fullPath} contains ZERO instances of ${criteria.contains}`);
 
-                        if (typeof criteria.onContains === 'function') {
-                            let maxMatches = typeof criteria.maxMatches === 'number' && criteria.maxMatches > 0 && criteria.maxMatches || Number.MAX_SAFE_INTEGER;
-
-                            while (result.done === false) {
-                                if (result.value) criteria.onContains(result.value);
-                                if (--maxMatches < 0) break;
+                        while (!result.done) {
+                            matchCount++;
+                            if (result.value && typeof criteria.onContains === 'function') {
+                                criteria.onContains(result.value);
                             }
+                            result = searcher.next();
                         }
+                        if (matchCount < minMatches) return callback(false, this, `minMatches: ${this.fullPath} contains ${criteria.contains}  (${matchCount} of ${minMatches})`);
+                        else if (matchCount > maxMatches) return callback(false, this, `maxMatches: ${this.fullPath} contains ${criteria.contains}  (${matchCount} of ${maxMatches}`)
                     }
                 }
                 return callback(true, this);
@@ -158,7 +171,7 @@ export default class FileObject<TNumType extends number | bigint> implements IFi
     }
 
     /**
-     * Evaluate this file against the criteria passed by the user
+     * Check to see if this file object matches the given criteria.
      * @param criteria The criteria for our search
      * @param callback The callback to execute with the result
      * @returns Returns nothing
@@ -179,22 +192,54 @@ export default class FileObject<TNumType extends number | bigint> implements IFi
         else return callback(true, this);
     }
 
+    //#region readFile() methods 
+
     readFile(callback: (error: Error | string | undefined | null, content: string) => void, encoding: BufferEncoding = 'utf8'): void {
         fs.readFile(this.fullPath, { encoding }, (err, data) => callback(err, data));
     }
 
+    /**
+     * Read a file asyncronously
+     * @returns Returns a promise to return the contents of the file
+     */
+    readFileAsync(encoding: BufferEncoding = 'utf8'): Promise<string> {
+        return new Promise((resolve, reject) => {
+            try {
+                this.readFile((err, content) => {
+                    if (err) reject(err);
+                    else if (content) resolve(content);
+                    else reject('No content');
+                }, encoding);
+            }
+            catch (err) {
+                reject(err);
+            }
+        })
+    }
+
+    /**
+     * Read the contents of the file syncronously.
+     * @param encoding The encoding used when reading the contents of the file
+     * @returns The contents of the file
+     */
     readFileSync(encoding: BufferEncoding = 'utf8'): string {
         return fs.readFileSync(this.fullPath, { encoding });
     }
 
+    //#endregion
+
+    /**
+     * Generate a string representation of this object and its state
+     * @returns A string representation of this object
+     */
     toString(): string {
         if (this.isSymbolicLink())
             return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath} => ${this.linkTargetName}]`;
         else if (this.isDirectory())
             if (this.isEmpty())
-                return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath}; empty] file(s)`;
+                return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath}; empty]file(s)`;
             else
-                return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath}; ${this.children.length}] file(s)`;
+                return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath}; ${this.children.length}]file(s)`;
         else
             return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath}]`;
     }

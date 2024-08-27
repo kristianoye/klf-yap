@@ -2,8 +2,9 @@ import Package from "./src/Package";
 import FileUtil from "./src/util/FileUtil";
 
 try {
-    FileUtil.fsq('./src/*.ts', { contains: /Kristian Oye/, ignoreCase: true, minSize: '1Kb', followLinks: true, recursive: true }, (err, file) => {
-        if (err) console.log(`Error: ${err}`);
+    const startTime: number = Date.now();
+
+    FileUtil.fsq('./src/*.ts', { contains: /Kristian Oye/, minSize: '1Kb', followLinks: true, recursive: true }, (err, file) => {
         if (file) console.log(`File ${file.fullPath} matched`);
     });
 }
