@@ -3,13 +3,16 @@
  * Written by Kristian Oye
  * Date: August 13, 2024
  * 
- * Contains enumerated types used by KLF modules.
+ * Contains common types 
  */
 'use strict';
 
 import fs from 'fs';
 import { FileContentMatchCallback } from './FileContentSearcher';
-import FileWorker from './FileWorker';
+import FileWorker, { FileWorkerImpl } from './FileWorker';
+
+/** Only strings are supported ATM */
+export type PathLike = string;
 
 /** The possible types of object we can/should expect */
 export type FileObjectType = 'file'
@@ -21,7 +24,7 @@ export type FileObjectType = 'file'
     | 'socket'
     | 'unknown';
 
-export type ErrorType =
+export type ErrorLike =
     | undefined
     | unknown
     | null
@@ -29,20 +32,23 @@ export type ErrorType =
     | string;
 
 /** Callback for matchSimpleCriteria() */
-export type MatchSimpleCriteriaCallback<TNumType extends number | bigint> = (success: boolean, file: IFileObject<TNumType>, reason?: string) => void;
+export type MatchSimpleCriteriaCallback<TNumType extends number | bigint = number> = (success: boolean, file: IFileObject<TNumType>, reason?: string) => void;
 
 /** Callback for matchCriteria() */
-export type MatchCriteriaCallback<TNumType extends number | bigint> = (success: boolean, file: IFileObject<TNumType>, reason?: string) => void;
+export type MatchCriteriaCallback<TNumType extends number | bigint = number> = (success: boolean, file: IFileObject<TNumType>, reason?: string) => void;
 
-/**
- * Wraps a NodeJS StatsBase with object goodness.
- */
-export interface IFileObject<TNumType extends number | bigint> extends fs.StatsBase<TNumType> {
+
+
+/** Wraps a NodeJS StatsBase with object goodness. */
+export interface IFileObject<TNumType extends number | bigint = number> extends fs.StatsBase<TNumType> {
     /** Children of the object; Should be undefined or empty for non-directories */
     children?: IFileObject<TNumType>[];
 
     /** Indicates how deeply the object is nested within the filesystem */
     depth: number;
+
+    /** If this is a dummy/placeholder object, then there might be an error as to why */
+    error?: ErrorLike;
 
     /** The fully-qualified path to the file */
     fullPath: string;
@@ -62,11 +68,14 @@ export interface IFileObject<TNumType extends number | bigint> extends fs.StatsB
     /** The prefix assigned when its read; This may be removed */
     prefix: string;
 
-    /**
-     * Add a child to a directory
-     * @param child A child file or directory
-     */
-    addChild(child: IFileObject<TNumType>): this;
+    /** Does the object actually exist? */
+    doesExist(): boolean;
+
+    /** Returns all children as a flat array */
+    flatChildren(): IFileObject<TNumType>[];
+
+    /** Get the stats used to create this object */
+    getStats(): fs.StatsBase<TNumType>;
 
     /**
      * Returns true if:
@@ -96,10 +105,9 @@ export interface IFileObject<TNumType extends number | bigint> extends fs.StatsB
     readFileSync(encoding: BufferEncoding): string;
 }
 
-/**
- * Basic file search criteria
- */
-export interface IReadFilesQuery<TNumType extends number | bigint> {
+
+/** Basic file search criteria */
+export interface IReadFilesQuery<TNumType extends number | bigint = number> {
     /** Use bigint for our numeric types */
     bigint: boolean;
 
@@ -146,13 +154,11 @@ export interface IReadFilesQuery<TNumType extends number | bigint> {
     throwErrors: boolean;
 
     /** For internal use */
-    worker: FileWorker;
+    worker: FileWorkerImpl;
 }
 
-/**
- * Advanced file search criteria
- */
-export interface IFileSystemQuery<TNumType extends number | bigint> extends IReadFilesQuery<TNumType> {
+/** Advanced file search criteria */
+export interface IFileSystemQuery<TNumType extends number | bigint = number> extends IReadFilesQuery<TNumType> {
     /** Matching files should contain text matching our expressions */
     contains?: string | RegExp;
 
@@ -189,15 +195,17 @@ export interface IFileSystemQuery<TNumType extends number | bigint> extends IRea
     minMatches?: TNumType
 
     /** Callback that executes when the content is matched */
-    onContains?: FileContentMatchCallback<TNumType>;
+    onContains?: FileContentMatchCallback;
 }
+
+export interface IFileSystemQueryBigint extends IFileSystemQuery<bigint> { }
 
 /**
  * Flesh out a File System Query (FSQ) criteria object
  * @param queryIn The seed of the query
  * @returns A complete query
  */
-export const createCompleteFSQ = <TNumType extends number | bigint>(queryIn: Partial<IFileSystemQuery<TNumType>>): IFileSystemQuery<TNumType> => {
+export const createCompleteFSQ = <TNumType extends number | bigint = number>(queryIn: Partial<IFileSystemQuery<TNumType>>): IFileSystemQuery<TNumType> => {
     const result: IFileSystemQuery<TNumType> = {
         ...createCompleteRPL(queryIn),
         contains: queryIn.contains,
@@ -213,7 +221,7 @@ export const createCompleteFSQ = <TNumType extends number | bigint>(queryIn: Par
     return result;
 }
 
-export const createCompleteRPL = <TNumType extends number | bigint>(queryIn: Partial<IReadFilesQuery<TNumType>>): IReadFilesQuery<TNumType> => {
+export const createCompleteRPL = <TNumType extends number | bigint = number>(queryIn: Partial<IReadFilesQuery<TNumType>>): IReadFilesQuery<TNumType> => {
     const expandSizeStrings = (spec: string | undefined | TNumType): undefined | TNumType => {
         if (typeof spec === 'string') {
             const m = /^(?<qty>[\d\._\,]+)(?<unit>[KMGTPEZY]*i?B)/i.exec(spec);
@@ -253,7 +261,7 @@ export const createCompleteRPL = <TNumType extends number | bigint>(queryIn: Par
         recursive: queryIn.recursive === true,
         singleFS: queryIn.singleFS === true,
         throwErrors: typeof queryIn.throwErrors === 'boolean' ? queryIn.throwErrors : true,
-        worker: typeof queryIn.worker === 'object' && queryIn.worker instanceof FileWorker && queryIn.worker || new FileWorker(queryIn.maxConcurrency)
+        worker: FileWorker.setMaxConcurrency(queryIn.maxConcurrency)
     }
     return result;
 }

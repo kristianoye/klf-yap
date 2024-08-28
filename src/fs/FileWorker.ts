@@ -47,7 +47,7 @@ class FileWorkerTask {
     get taskId() { return this.id }
 }
 
-export default class FileWorker extends EventEmitter {
+export class FileWorkerImpl extends EventEmitter {
     constructor(concurrency: number = Number.MAX_SAFE_INTEGER) {
         super();
 
@@ -56,7 +56,7 @@ export default class FileWorker extends EventEmitter {
 
     private readonly activeTasks: FileWorkerTask[] = [];
 
-    private readonly maxConcurrency: number = Number.MAX_SAFE_INTEGER;
+    private maxConcurrency: number = Number.MAX_SAFE_INTEGER;
 
     private readonly taskList: FileWorkerTask[] = [];
 
@@ -97,4 +97,14 @@ export default class FileWorker extends EventEmitter {
         }
         return this;
     }
+
+    /** Set a limit on concurrency */
+    setMaxConcurrency(concurrency: number = Number.MAX_SAFE_INTEGER): this {
+        if (concurrency > 0)
+            this.maxConcurrency = concurrency;
+        return this;
+    }
 }
+
+const FileWorker: FileWorkerImpl = new FileWorkerImpl();
+export default FileWorker;

@@ -12,7 +12,7 @@ import { IFileObject } from "./FileTypedefs";
 /**
  * Information about a file content searchresult
  */
-export interface FileContentMatch<TNumType extends number | bigint> {
+export interface FileContentMatch<TNumType extends number | bigint = number> {
     /** Where did the match occur? */
     position: FileContentMatchPosition;
 
@@ -27,24 +27,24 @@ export interface FileContentMatch<TNumType extends number | bigint> {
  * Called whenever a content search finds a match.  If the callback returns
  * true, then the search will continue and try and find another match.
  */
-export type FileContentMatchCallback<TNumType extends number | bigint> = (match: FileContentMatch<TNumType>) => boolean;
+export type FileContentMatchCallback = (match: FileContentMatch<number> | FileContentMatch<bigint>) => boolean;
 
 
-export type FileContentMatchPosition = {
+export type FileContentMatchPosition<TNumType extends number | bigint = number> = {
     /** The column where the match stated */
-    col: number;
+    col: TNumType;
 
-
+    /** The file containing the match */
     filename: string;
 
     /** The character offset relative to the beginning of file where the match started */
-    index: number;
+    index: TNumType;
 
     /** The line where the match started */
-    line: number;
+    line: TNumType;
 }
 
-export type FileContentSearchResult<TNumType extends number | bigint> = {
+export type FileContentSearchResult<TNumType extends number | bigint = number> = {
     done: boolean;
     value: FileContentMatch<TNumType> | null
 }
@@ -72,7 +72,7 @@ export type FileContentSearchOptions = {
     unicodeSets?: boolean;
 }
 
-export default class FileContentSearcher<TNumType extends number | bigint> {
+export default class FileContentSearcher<TNumType extends number | bigint = number> {
     constructor(file: IFileObject<TNumType>, criteria: string | RegExp, options: FileContentSearchOptions = { encoding: 'utf8', ignoreCase: false, ignoreWhitespace: false }) {
         const flags = ['g'];
 

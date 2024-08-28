@@ -7,7 +7,7 @@
  */
 'use strict';
 
-import { createCompleteFSQ, createCompleteRPL, ErrorType, IFileObject, IFileSystemQuery, IReadFilesQuery } from '../fs/FileTypedefs';
+import { createCompleteFSQ, createCompleteRPL, ErrorLike, IFileObject, IFileSystemQuery, IReadFilesQuery } from '../fs/FileTypedefs';
 import { GenericObject } from "../BaseTypes";
 import FileObjectCollection from "../fs/FileObjectArray";
 import FileObject from "../fs/FileObject";
@@ -55,22 +55,22 @@ const packageRoot: string = getProjectRoot();
 /**
  * When KLF is performing a streaming read, this will fire once for every file matching our criteria
  */
-export type FSQObjectCallback<TNumType extends number | bigint> = (error: ErrorType, file: IFileObject<TNumType> | undefined, criteria?: IFileSystemQuery<TNumType>) => void;
+export type FSQObjectCallback<TNumType extends number | bigint = number> = (error: ErrorLike, file: IFileObject<TNumType> | undefined, criteria?: IFileSystemQuery<TNumType>) => void;
 
 /**
  * When KLF is performing a buffered read, this will fire once for every batch of matching files
  */
-export type FSQCollectionCallback<TNumType extends number | bigint> = (error: ErrorType, files: FileObjectCollection<TNumType> | undefined, criteria?: IFileSystemQuery<TNumType>) => void;
+export type FSQCollectionCallback = (error: ErrorLike, files: FileObjectCollection | undefined, criteria?: IFileSystemQuery) => void;
 
 /**
  * When KLF is performing a streaming read, this will fire once for every file matching our criteria
  */
-export type RPLObjectCallback<TNumType extends number | bigint> = (error: ErrorType, file: IFileObject<TNumType> | undefined, criteria?: IReadFilesQuery<TNumType>) => void;
+export type RPLObjectCallback = (error: ErrorLike, file: IFileObject | undefined, criteria?: IReadFilesQuery) => void;
 
 /**
  * When KLF is performing a buffered read, this will fire once for every batch of matching files
  */
-export type RPLCollectionCallback<TNumType extends number | bigint> = (error: ErrorType, files: FileObjectCollection<TNumType> | undefined, criteria?: IReadFilesQuery<TNumType>) => void;
+export type RPLCollectionCallback = (error: ErrorLike, files: FileObjectCollection | undefined, criteria?: IReadFilesQuery) => void;
 
 
 interface IFileUtil {
@@ -78,7 +78,7 @@ interface IFileUtil {
      * Flush out a full FSQ using the provided parameters
      * @param queryIn The provided parameters
      */
-    createQuery<TNumType extends number | bigint>(queryIn: Partial<IFileSystemQuery<TNumType>>): IFileSystemQuery<TNumType>;
+    createQuery(queryIn: Partial<IFileSystemQuery>): IFileSystemQuery;
 
     /**
      * Execute a File System Query (FSQ) and receive the results in the supplied callback (Streaming Version)
@@ -86,7 +86,7 @@ interface IFileUtil {
      * @param query The criteria for our search
      * @param callback A callback to receive the results
      */
-    fsq<TNumType extends number | bigint>(pathLike: string, query: Partial<IFileSystemQuery<TNumType>>, callback: FSQObjectCallback<TNumType>): this;
+    fsq(pathLike: string, query: Partial<IFileSystemQuery>, callback: FSQObjectCallback): this;
 
     /**
      * Execute a File System Query (FSQ) and receive the results in the supplied callback (Buffered Version)
@@ -94,7 +94,7 @@ interface IFileUtil {
      * @param query The criteria for our search
      * @param callback A callback to receive the results
      */
-    fsq<TNumType extends number | bigint>(pathLike: string, query: Partial<IFileSystemQuery<TNumType>> & { buffer: true }, callback: FSQCollectionCallback<TNumType>): this;
+    fsq(pathLike: string, query: Partial<IFileSystemQuery> & { buffer: true }, callback: FSQCollectionCallback): this;
 
     /**
      * Execute a File System Query (FSQ) and receive the results in the supplied callback (Streaming Version)
@@ -102,7 +102,7 @@ interface IFileUtil {
      * @param query The criteria for our search
      * @param callback A callback to receive the results
      */
-    fsq<TNumType extends number | bigint>(pathLikes: string[], query: Partial<IFileSystemQuery<TNumType>>, callback: FSQObjectCallback<TNumType>): this;
+    fsq(pathLikes: string[], query: Partial<IFileSystemQuery>, callback: FSQObjectCallback): this;
 
     /**
      * Execute a File System Query (FSQ) and receive the results in the supplied callback (Buffered Version)
@@ -110,54 +110,54 @@ interface IFileUtil {
      * @param query The criteria for our search
      * @param callback A callback to receive the results
      */
-    fsq<TNumType extends number | bigint>(pathLikes: string[], query: Partial<IFileSystemQuery<TNumType>> & { buffer: true }, callback: FSQCollectionCallback<TNumType>): this;
+    fsq(pathLikes: string[], query: Partial<IFileSystemQuery> & { buffer: true }, callback: FSQCollectionCallback): this;
 
     /**
      * Execute a File System Query (FSQ) and receive the results in the supplied callback (Streaming Version)
      * @param pathLike The path in which to conduct our query
      * @param callback A callback to receive the results
      */
-    fsq<TNumType extends number | bigint>(pathLike: string, callback: Partial<IFileSystemQuery<TNumType>>): this;
+    fsq(pathLike: string, callback: Partial<IFileSystemQuery>): this;
 
     /**
      * Execute a File System Query (FSQ) and receive the results in the supplied callback (Streaming Version)
      * @param pathLikes One or more paths in which to conduct our query
      * @param callback A callback to receive the results
      */
-    fsq<TNumType extends number | bigint>(pathLikes: string[], callback: Partial<IFileSystemQuery<TNumType>>): this;
+    fsq(pathLikes: string[], callback: Partial<IFileSystemQuery>): this;
 
     /**
      * Execute a File System Query (FSQ) and receive the results in the supplied callback (Streaming Version)
      * @param query The conditions of our query
      * @param callback A callback to receive the results, one file at a time
      */
-    fsq<TNumType extends number | bigint>(query: IFileSystemQuery<TNumType>, callback: FSQObjectCallback<TNumType>): this;
+    fsq(query: IFileSystemQuery, callback: FSQObjectCallback): this;
 
     /**
      * Execute a File System Query (FSQ) and receive the results in the supplied callback (Buffered Version)
      * @param query The conditions of our query
      * @param callback A callback to receive the resulting file collection
      */
-    fsq<TNumType extends number | bigint>(query: IFileSystemQuery<TNumType> & { buffer: true }, callback: FSQCollectionCallback<TNumType>): this;
+    fsq(query: IFileSystemQuery & { buffer: true }, callback: FSQCollectionCallback): this;
 
-    fsqAsync<TNumType extends number | bigint>(pathLike: string, query: Partial<IFileSystemQuery<TNumType>>): Promise<FileObjectCollection<TNumType>>;
-    fsqAsync<TNumType extends number | bigint>(pathLikes: string[], query: Partial<IFileSystemQuery<TNumType>>): Promise<FileObjectCollection<TNumType>>;
-    fsqAsync<TNumType extends number | bigint>(pathLike: string): Promise<FileObjectCollection<TNumType>>;
-    fsqAsync<TNumType extends number | bigint>(pathLikes: string[]): Promise<FileObjectCollection<TNumType>>;
-    fsqAsync<TNumType extends number | bigint>(query: Partial<IFileSystemQuery<TNumType>>): Promise<FileObjectCollection<TNumType>>;
+    fsqAsync(pathLike: string, query: Partial<IFileSystemQuery>): Promise<FileObjectCollection>;
+    fsqAsync(pathLikes: string[], query: Partial<IFileSystemQuery>): Promise<FileObjectCollection>;
+    fsqAsync(pathLike: string): Promise<FileObjectCollection>;
+    fsqAsync(pathLikes: string[]): Promise<FileObjectCollection>;
+    fsqAsync(query: Partial<IFileSystemQuery>): Promise<FileObjectCollection>;
 
-    readPathlike<TNumType extends number | bigint>(pathLike: string, callback: RPLCollectionCallback<TNumType>, query: Partial<IReadFilesQuery<TNumType>> & { buffered: true }): this;
-    readPathlike<TNumType extends number | bigint>(pathLike: string, callback: RPLObjectCallback<TNumType>, query: Partial<IReadFilesQuery<TNumType>>): this;
-    readPathlike<TNumType extends number | bigint>(pathLike: string, callback: RPLObjectCallback<TNumType>): this;
-    readPathlike<TNumType extends number | bigint>(fileObject: FileObject<TNumType>, callback: RPLCollectionCallback<TNumType>, query: Partial<IReadFilesQuery<TNumType>> & { buffered: true }): this;
-    readPathlike<TNumType extends number | bigint>(fileObject: FileObject<TNumType>, callback: RPLObjectCallback<TNumType>, query: Partial<IReadFilesQuery<TNumType>>): this;
-    readPathlike<TNumType extends number | bigint>(fileObject: FileObject<TNumType>, callback: RPLObjectCallback<TNumType>): this;
+    readPathlike(pathLike: string, callback: RPLCollectionCallback, query: Partial<IReadFilesQuery> & { buffered: true }): this;
+    readPathlike(pathLike: string, callback: RPLObjectCallback, query: Partial<IReadFilesQuery>): this;
+    readPathlike(pathLike: string, callback: RPLObjectCallback): this;
+    readPathlike(fileObject: FileObject, callback: RPLCollectionCallback, query: Partial<IReadFilesQuery> & { buffered: true }): this;
+    readPathlike(fileObject: FileObject, callback: RPLObjectCallback, query: Partial<IReadFilesQuery>): this;
+    readPathlike(fileObject: FileObject, callback: RPLObjectCallback): this;
 
-    statPathlike<TNumType extends number | bigint>(pathLike: string, callback: FSQObjectCallback<TNumType>, queryIn: Partial<IReadFilesQuery<TNumType>>): void;
+    statPathlike(pathLike: string, callback: FSQObjectCallback, queryIn: Partial<IReadFilesQuery>): void;
 }
 
 class FileUtilImpl implements IFileUtil {
-    createQuery<TNumType extends number | bigint>(queryIn: Partial<IFileSystemQuery<TNumType>>): IFileSystemQuery<TNumType> {
+    createQuery(queryIn: Partial<IFileSystemQuery>): IFileSystemQuery {
         return createCompleteFSQ(queryIn);
     }
 
@@ -176,28 +176,28 @@ class FileUtilImpl implements IFileUtil {
      * @param queryIn 
      * @returns 
      */
-    readPathlike<TNumType extends number | bigint>(
-        pathLikeOrFileObject: string | FileObject<TNumType>,
-        callbackIn: FSQObjectCallback<TNumType> | FSQCollectionCallback<TNumType>,
-        queryIn: Partial<IReadFilesQuery<TNumType>> = { expr: [], buffer: false }): this {
+    readPathlike(
+        pathLikeOrFileObject: string | FileObject,
+        callbackIn: FSQObjectCallback | FSQCollectionCallback,
+        queryIn: Partial<IReadFilesQuery> = { expr: [], buffer: false }): this {
 
         const query = createCompleteRPL(queryIn);
         const isBuffering = query.buffer === true;
-        const callbackStreamed = !isBuffering && typeof callbackIn === 'function' && callbackIn as FSQObjectCallback<TNumType> || undefined;
-        const callbackBuffered = isBuffering && typeof callbackIn === 'function' && callbackIn as FSQCollectionCallback<TNumType> || undefined;
-        const sendSingleResult = (message: ErrorType, returnValue: FileObject<TNumType> | undefined = undefined) => {
+        const callbackStreamed = !isBuffering && typeof callbackIn === 'function' && callbackIn as FSQObjectCallback || undefined;
+        const callbackBuffered = isBuffering && typeof callbackIn === 'function' && callbackIn as FSQCollectionCallback || undefined;
+        const sendSingleResult = (message: ErrorLike, returnValue: FileObject | undefined = undefined) => {
             const error = typeof message === 'string' && new Error(message) || typeof message === 'object' && message instanceof Error && message || undefined;
             if (query.throwErrors === true && error) throw error;
 
             if (callbackStreamed)
                 callbackStreamed(error, returnValue, query);
             else if (callbackBuffered && returnValue)
-                callbackBuffered(error, new FileObjectCollection<TNumType>([returnValue]), query);
+                callbackBuffered(error, new FileObjectCollection([returnValue]), query);
             else if (callbackBuffered)
-                callbackBuffered(error, new FileObjectCollection<TNumType>(), query);
+                callbackBuffered(error, new FileObjectCollection(), query);
             return this;
         };
-        const fileObject: FileObject<TNumType> | undefined = typeof pathLikeOrFileObject === 'object' && pathLikeOrFileObject as FileObject<TNumType> || undefined;
+        const fileObject: FileObject | undefined = typeof pathLikeOrFileObject === 'object' && pathLikeOrFileObject as FileObject || undefined;
         let pathLike: string = typeof pathLikeOrFileObject === 'string' ? pathLikeOrFileObject : fileObject?.fullPath!;
 
         if (!path.isAbsolute(pathLike)) {
@@ -227,10 +227,10 @@ class FileUtilImpl implements IFileUtil {
                                     return sendSingleResult(`Expression ${pathLike} cannot contain more than one globstar`);
 
                                 query.worker.enqueue(() => {
-                                    this.readPathlike(leftExpr, (err: ErrorType, file: IFileObject<TNumType> | undefined, criteria: IReadFilesQuery<TNumType> | undefined) => {
+                                    this.readPathlike(leftExpr, (err: ErrorLike, file: IFileObject | undefined, criteria: IReadFilesQuery | undefined) => {
                                         query.worker.enqueue(() => {
                                             file?.matchSimpleCriteria(criteria!, (isMatch, file) => {
-                                                if (isMatch && file) sendSingleResult(err, file as FileObject<TNumType>);
+                                                if (isMatch && file) sendSingleResult(err, file as FileObject);
                                             });
                                         });
                                     }, { ...query, buffer: false, recursive: true, endsWith: rightPattern });
@@ -244,18 +244,18 @@ class FileUtilImpl implements IFileUtil {
                             const rightPattern = RegExUtil.createFileRegex(rightExpr, { endsWith: true });
 
                             query.worker.enqueue(() => {
-                                this.readPathlike(leftExpr, (err: ErrorType, file: IFileObject<TNumType> | undefined, criteria: IReadFilesQuery<TNumType> | undefined) => {
+                                this.readPathlike(leftExpr, (err: ErrorLike, file: IFileObject | undefined, criteria: IReadFilesQuery | undefined) => {
                                     query.worker.enqueue(() => {
                                         file?.matchSimpleCriteria(criteria!, (isMatch, file) => {
                                             if (file) {
                                                 if (isMatch)
-                                                    sendSingleResult(err, file as FileObject<TNumType>);
+                                                    sendSingleResult(err, file as FileObject);
                                                 if (file.isDirectory()) {
                                                     for (const child of file.children!) {
                                                         query.worker.enqueue(() => {
                                                             child?.matchSimpleCriteria(criteria!, (isChildMatch, childFile, reason) => {
                                                                 if (isChildMatch && childFile)
-                                                                    sendSingleResult(undefined, childFile as FileObject<TNumType>);
+                                                                    sendSingleResult(undefined, childFile as FileObject);
                                                                 else if (reason)
                                                                     console.log(reason);
                                                             });
@@ -273,10 +273,10 @@ class FileUtilImpl implements IFileUtil {
             }
             else if (isBuffering && callbackBuffered) {
                 const fullPath = fileObject ? fileObject.fullPath : pathLike;
-                const collection = new FileObjectCollection<TNumType>();
+                const collection = new FileObjectCollection();
 
                 if (fullPath)
-                    this.statPathlike<TNumType>(fullPath, (err: ErrorType, file: IFileObject<TNumType> | undefined) => {
+                    this.statPathlike(fullPath, (err: ErrorLike, file: IFileObject | undefined) => {
                         if (file) collection.push(file);
                     }, query);
                 callbackBuffered(`Could not determine path`, collection, query);
@@ -284,7 +284,7 @@ class FileUtilImpl implements IFileUtil {
             else if (!isBuffering && callbackStreamed) {
                 const fullPath = fileObject ? fileObject.fullPath : pathLike;
                 if (fullPath)
-                    this.statPathlike<TNumType>(fullPath, (err: ErrorType, file: IFileObject<TNumType> | undefined) => {
+                    this.statPathlike(fullPath, (err: ErrorLike, file: IFileObject | undefined) => {
                         callbackStreamed(err, file, query);
                     }, query);
             }
@@ -305,7 +305,7 @@ class FileUtilImpl implements IFileUtil {
      * @param queryIn The criteria we are tring to match
      * @returns 
      */
-    statPathlike<TNumType extends number | bigint>(pathLike: string, callback: FSQObjectCallback<TNumType>, queryIn: Partial<IReadFilesQuery<TNumType>> = {}): void {
+    statPathlike(pathLike: string, callback: FSQObjectCallback, queryIn: Partial<IReadFilesQuery> = {}): void {
         const query = createCompleteRPL(queryIn);
 
         try {
@@ -319,14 +319,13 @@ class FileUtilImpl implements IFileUtil {
                         else if (stats.isSymbolicLink()) {
                             query.worker.enqueue(() => {
                                 fs.readlink(fullPath, { encoding: query.encoding || 'utf8' }, (err, linkTargetName) => {
-                                    const linkObj = new FileObject<TNumType>(stats as fs.StatsBase<TNumType>, { fullPath, linkTargetName });
+                                    const linkObj = new FileObject(stats as fs.Stats, { fullPath, linkTargetName });
                                     const linkTargetResolved = path.resolve(linkObj.parentPath, linkTargetName);
 
                                     if (query.followLinks) {
                                         query.worker.enqueue(() => {
-                                            this.statPathlike<TNumType>(linkTargetResolved, (err, linkTarget) => {
-                                                linkObj.linkTarget = linkTarget;
-                                                callback(err, linkObj);
+                                            this.statPathlike(linkTargetResolved, (err, linkTarget) => {
+                                                callback(err, new FileObject(stats as fs.Stats, { fullPath, linkTargetName, linkTarget }))
                                             }, query);
                                         })
                                     }
@@ -336,32 +335,34 @@ class FileUtilImpl implements IFileUtil {
                             });
                         }
                         else if (stats.isDirectory()) {
-                            const dir = new FileObject<TNumType>(stats as fs.StatsBase<TNumType>, { fullPath });
+                            const dir = new FileObject(stats as fs.StatsBase<number>, { fullPath });
 
                             fs.readdir(fullPath, { encoding: 'utf8' }, (err, stats) => {
+                                const children: IFileObject[] = [];
                                 let untilComplete = stats.length;
 
-                                const addChild = (child: IFileObject<TNumType> | undefined): IFileObject<TNumType> | undefined => {
+                                const addChild = (child: IFileObject | undefined): void => {
                                     if (child) {
-                                        child.parent = dir;
-                                        dir.addChild(child);
+                                        children.push(child);
                                     }
-                                    if (--untilComplete === 0) callback(undefined, dir);
-                                    return child;
+                                    if (--untilComplete === 0) {
+                                        const finalDir = new FileObject(dir.getStats(), { ...dir, children });
+                                        callback(err, finalDir);
+                                    }
                                 };
                                 for (const name of stats) {
                                     query.worker.enqueue(() => {
                                         const childFullPath = path.join(fullPath, name);
 
-                                        this.statPathlike<TNumType>(childFullPath, (err, childStats) => {
+                                        this.statPathlike(childFullPath, (err, childStats) => {
                                             if (err && query.throwErrors)
                                                 throw err;
                                             else if (childStats) {
-                                                const newChild = new FileObject<TNumType>(childStats, { parent: dir, name, fullPath: childFullPath });
+                                                const newChild = new FileObject(childStats, { parent: dir, name, fullPath: childFullPath });
 
                                                 if (query.recursive === true && newChild.isDirectory()) {
                                                     query.worker.enqueue(() => {
-                                                        this.statPathlike<TNumType>(childFullPath, (err, newChildDirectory) => {
+                                                        this.statPathlike(childFullPath, (err, newChildDirectory) => {
                                                             if (newChildDirectory) addChild(newChildDirectory);
                                                             else addChild(undefined);
                                                         }, query);
@@ -378,7 +379,7 @@ class FileUtilImpl implements IFileUtil {
                         }
                         else {
                             query.worker.enqueue(() => {
-                                const newChild = new FileObject<TNumType>(stats as fs.StatsBase<TNumType>, { fullPath });
+                                const newChild = new FileObject(stats as fs.Stats, { fullPath });
                                 if (err)
                                     callback(err, newChild);
                                 else
@@ -400,11 +401,11 @@ class FileUtilImpl implements IFileUtil {
      * @param query The criteria for matching files
      * @param callback The callback is executed when the entire collection is complete
      */
-    private fsqBuffered<TNumType extends number | bigint>(query: IFileSystemQuery<TNumType>, callback: FSQCollectionCallback<TNumType>) {
-        const result: FileObjectCollection<TNumType> = new FileObjectCollection<TNumType>();
+    private fsqBuffered(query: IFileSystemQuery, callback: FSQCollectionCallback) {
+        const result: FileObjectCollection = new FileObjectCollection();
 
         for (const [i, expr] of query.expr.entries()) {
-            this.readPathlike<TNumType>(expr, (err: ErrorType, file: IFileObject<TNumType> | undefined) => {
+            this.readPathlike(expr, (err: ErrorLike, file: IFileObject | undefined) => {
                 file?.matchCriteria(query, (didMatchCriteria, file) => {
                     if (didMatchCriteria) result.push(file);
                 });
@@ -417,9 +418,9 @@ class FileUtilImpl implements IFileUtil {
      * @param query The criteria for matching files
      * @param callback The callback is executed for every matching file
      */
-    private fsqStreamed<TNumType extends number | bigint>(query: IFileSystemQuery<TNumType>, callback: FSQObjectCallback<TNumType>) {
+    private fsqStreamed(query: IFileSystemQuery, callback: FSQObjectCallback) {
         for (const [i, expr] of query.expr.entries()) {
-            this.readPathlike<TNumType>(expr, (err: ErrorType, file: IFileObject<TNumType> | undefined) => {
+            this.readPathlike(expr, (err: ErrorLike, file: IFileObject | undefined) => {
                 file?.matchCriteria(query, (didMatchCriteria, file) => {
                     if (didMatchCriteria) callback(err, file);
                 });
@@ -434,23 +435,23 @@ class FileUtilImpl implements IFileUtil {
      * @param callbackIn A callback
      * @returns 
      */
-    fsq<TNumType extends number | bigint>(
-        pathLikeOrQuery: string | string[] | IFileSystemQuery<TNumType>,
-        queryOrCallback: FSQObjectCallback<TNumType> | FSQCollectionCallback<TNumType> | Partial<IFileSystemQuery<TNumType>> = { expr: [] },
-        callbackIn?: FSQObjectCallback<TNumType> | FSQCollectionCallback<TNumType>): this {
+    fsq(
+        pathLikeOrQuery: string | string[] | IFileSystemQuery,
+        queryOrCallback: FSQObjectCallback | FSQCollectionCallback | Partial<IFileSystemQuery> = { expr: [] },
+        callbackIn?: FSQObjectCallback | FSQCollectionCallback): this {
 
         const pathLikes: string[] = Array.isArray(pathLikeOrQuery) && pathLikeOrQuery as string[]
             || typeof pathLikeOrQuery === 'string' && [pathLikeOrQuery]
             || !Array.isArray(pathLikeOrQuery) && typeof pathLikeOrQuery === 'object' && pathLikeOrQuery.expr
             || [] as string[];
-        const query: IFileSystemQuery<TNumType> = createCompleteFSQ(typeof pathLikeOrQuery === 'object' && pathLikeOrQuery as IFileSystemQuery<TNumType>
-            || typeof queryOrCallback === 'object' && queryOrCallback as IFileSystemQuery<TNumType>
-            || { expr: '' } as unknown as IFileSystemQuery<TNumType>);
+        const query: IFileSystemQuery = createCompleteFSQ(typeof pathLikeOrQuery === 'object' && pathLikeOrQuery as IFileSystemQuery
+            || typeof queryOrCallback === 'object' && queryOrCallback as IFileSystemQuery
+            || { expr: '' } as unknown as IFileSystemQuery);
         const isBuffering = query.buffer === true;
-        const callbackStreamed = !isBuffering && typeof queryOrCallback === 'function' && queryOrCallback as FSQObjectCallback<TNumType>
-            || !isBuffering && typeof callbackIn === 'function' && callbackIn as FSQObjectCallback<TNumType> || undefined;
-        const callbackBuffered = isBuffering && typeof queryOrCallback === 'function' && queryOrCallback as FSQCollectionCallback<TNumType> || undefined
-            || isBuffering && typeof callbackIn === 'function' && callbackIn as FSQCollectionCallback<TNumType> || undefined;
+        const callbackStreamed = !isBuffering && typeof queryOrCallback === 'function' && queryOrCallback as FSQObjectCallback
+            || !isBuffering && typeof callbackIn === 'function' && callbackIn as FSQObjectCallback || undefined;
+        const callbackBuffered = isBuffering && typeof queryOrCallback === 'function' && queryOrCallback as FSQCollectionCallback || undefined
+            || isBuffering && typeof callbackIn === 'function' && callbackIn as FSQCollectionCallback || undefined;
 
         if (pathLikes) {
             query.expr = Array.isArray(query.expr) ? [...query.expr, ...pathLikes] : query.expr = pathLikes;
@@ -474,16 +475,16 @@ class FileUtilImpl implements IFileUtil {
      * @param queryIn A query
      * @returns 
      */
-    async fsqAsync<TNumType extends number | bigint>(pathLikeOrQuery: string | string[] | Partial<IFileSystemQuery<TNumType>>, queryIn?: Partial<IFileSystemQuery<TNumType>>): Promise<FileObjectCollection<TNumType>> {
+    async fsqAsync(pathLikeOrQuery: string | string[] | Partial<IFileSystemQuery>, queryIn?: Partial<IFileSystemQuery>): Promise<FileObjectCollection> {
         const query = typeof pathLikeOrQuery === 'object' && !Array.isArray(pathLikeOrQuery) && createCompleteFSQ(pathLikeOrQuery)
             || typeof queryIn === 'object' && createCompleteFSQ(queryIn) || createCompleteFSQ({ expr: [] });
         const pathLikes = typeof pathLikeOrQuery === 'string' && [pathLikeOrQuery] || Array.isArray(pathLikeOrQuery) && pathLikeOrQuery || query.expr || [];
 
         query.buffer = true;
 
-        return new Promise((resolve: (result: FileObjectCollection<TNumType>) => void, reject: (reason: any) => void) => {
+        return new Promise((resolve: (result: FileObjectCollection) => void, reject: (reason: any) => void) => {
             try {
-                this.fsq<TNumType>(pathLikes, query as IFileSystemQuery<TNumType>, (error: ErrorType, files: FileObjectCollection<TNumType> | undefined) => {
+                this.fsq(pathLikes, query as IFileSystemQuery, (error: ErrorLike, files: FileObjectCollection | undefined) => {
                     if (error && query.throwErrors === true) reject(error);
                     else if (files) resolve(files);
                 });
@@ -492,10 +493,6 @@ class FileUtilImpl implements IFileUtil {
                 reject(err);
             }
         });
-    }
-
-    fsqSync(): void {
-
     }
 }
 

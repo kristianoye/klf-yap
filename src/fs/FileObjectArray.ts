@@ -3,8 +3,8 @@ import { createCompleteFSQ, IFileObject, IFileSystemQuery } from "./FileTypedefs
 /**
  * Represents a collection of files 
  */
-export default class FileObjectCollection<TNumType extends number | bigint> extends Array<IFileObject<TNumType>> {
-    constructor(files: IFileObject<TNumType>[] = []) {
+export default class FileObjectCollection extends Array<IFileObject> {
+    constructor(files: IFileObject[] = []) {
         super(...files);
     }
 
@@ -16,9 +16,9 @@ export default class FileObjectCollection<TNumType extends number | bigint> exte
         return this;
     }
 
-    where(queryIn: Partial<IFileSystemQuery<TNumType>>, callback: (files: FileObjectCollection<TNumType>) => void): this {
+    where(queryIn: Partial<IFileSystemQuery>, callback: (files: FileObjectCollection) => void): this {
         const query = createCompleteFSQ(queryIn),
-            result = new FileObjectCollection<TNumType>();
+            result = new FileObjectCollection();
         let totalChecks = this.length;
 
         for (const file of this) {
@@ -31,7 +31,7 @@ export default class FileObjectCollection<TNumType extends number | bigint> exte
         return this;
     }
 
-    whereAsync(queryIn: Partial<IFileSystemQuery<TNumType>>): Promise<FileObjectCollection<TNumType>> {
+    whereAsync(queryIn: Partial<IFileSystemQuery>): Promise<FileObjectCollection> {
         return new Promise((resolve, reject) => {
             try {
                 this.where(queryIn, files => resolve(files));
