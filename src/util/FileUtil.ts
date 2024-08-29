@@ -9,7 +9,7 @@
 
 import { createCompleteFSQ, createCompleteRPL, ErrorLike, IFileObject, IFileSystemQuery, IReadFilesQuery } from '../fs/FileTypedefs';
 import { GenericObject } from "../BaseTypes";
-import FileObjectCollection from "../fs/FileObjectArray";
+import FileObjectCollection from "../fs/FileObjectCollection";
 import FileObject from "../fs/FileObject";
 import RegExUtil from "./RegExUtil";
 import path from 'path';

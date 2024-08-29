@@ -11,7 +11,7 @@ import fs, { StatsBase } from 'fs';
 import path from 'path';
 import { FileObjectType, IFileSystemQuery, IFileObject, IReadFilesQuery, MatchCriteriaCallback, MatchSimpleCriteriaCallback, ErrorLike } from './FileTypedefs';
 import FileContentSearcher, { FileContentMatch, FileContentMatchCallback } from './FileContentSearcher';
-import { mainModule } from 'process';
+import { IFileSystem } from './FileSystem';
 
 /**
  * Default implementation of the IFileObject interface
@@ -20,7 +20,14 @@ export default class FileObject<TNumType extends number | bigint = number> imple
     constructor(stats: fs.StatsBase<TNumType>, details: Partial<FileObject<TNumType>> = {}) {
         this._children = stats.isDirectory() && Array.isArray(details.children) && details.children || undefined;
         this.error = details.error;
+
+        if (!details.fileSystem)
+            throw new Error(`Invalid IFileObject did not provide a filesystem reference`);
+        this.fileSystem = details.fileSystem;
         this.fullPath = details.fullPath!;
+        if (this.fullPath.endsWith(path.sep)) {
+            this.fullPath = this.fullPath.slice(0, -path.sep.length);
+        }
         if (details.name) {
             this.name = this.baseName = details.name!;
         }
@@ -36,19 +43,29 @@ export default class FileObject<TNumType extends number | bigint = number> imple
         this._stats = stats;
 
         if (this.linkTarget && typeof this.linkTargetName === 'string' && this.linkTarget.isDirectory()) {
-            const children = this.linkTarget.flatChildren();
-            const newChildren: IFileObject<TNumType>[] = [];
+            const children = this.linkTarget.children;
+            if (Array.isArray(children)) {
+                const newChildren: IFileObject<TNumType>[] = [];
+                const ltnl: number = this.linkTargetName.length;
+                const makeChildLink = (child: IFileObject<TNumType>, parent: IFileObject<TNumType>): IFileObject<TNumType> => {
+                    const linkFullPath = path.join(parent.fullPath, child.fullPath.slice(ltnl));
+                    const children = Array.isArray(child.children) && child.children.map(c => makeChildLink(c, child)) || undefined;
+                    const linkChild = new FileObject(child.getStats(), {
+                        children,
+                        linkTarget: child,
+                        linkTargetName: child.fullPath,
+                        fileSystem: this.fileSystem,
+                        fullPath: linkFullPath,
+                        parent
+                    });
+                    return linkChild;
+                }
 
-            for (const child of children) {
-                const linkFullPath = path.resolve(this.fullPath, child.fullPath.slice(this.linkTargetName.length));
-                const linkChild = new FileObject(child.getStats(), {
-                    linkTarget: child,
-                    linkTargetName: child.fullPath,
-                    fullPath: linkFullPath,
-                });
-                newChildren.push(linkChild);
+                for (const child of children) {
+                    newChildren.push(makeChildLink(child, this));
+                }
+                this._children = newChildren;
             }
-            this._children = newChildren;
         }
 
         if (!this.isDirectory()) {
@@ -75,6 +92,8 @@ export default class FileObject<TNumType extends number | bigint = number> imple
     error?: ErrorLike;
 
     readonly extension: string = '';
+
+    readonly fileSystem: IFileSystem;
 
     readonly fullPath: string;
 
@@ -147,9 +166,9 @@ export default class FileObject<TNumType extends number | bigint = number> imple
         return this._stats.isCharacterDevice();
     }
 
-    isEmpty(): boolean {
+    isEmpty(): boolean | undefined {
         if (this.isDirectory())
-            return this.children?.length === 0;
+            return Array.isArray(this.children) ? this.children.length === 0 : undefined;
         else if (this.isFile())
             return this.size === 0;
         else
@@ -282,7 +301,7 @@ export default class FileObject<TNumType extends number | bigint = number> imple
      */
     toString(): string {
         if (this.isSymbolicLink())
-            return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath} => ${this.linkTargetName}]`;
+            return `FileObject[link to ${this.typeName}; ${this.name}; ${this.fullPath} => ${this.linkTargetName}]`;
         else if (this.isDirectory())
             if (this.isEmpty())
                 return `FileObject[${this.typeName}; ${this.name}; ${this.fullPath}; empty]file(s)`;

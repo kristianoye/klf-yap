@@ -10,6 +10,7 @@
 import fs from 'fs';
 import { FileContentMatchCallback } from './FileContentSearcher';
 import FileWorker, { FileWorkerImpl } from './FileWorker';
+import { IFileSystem } from './FileSystem';
 
 /** Only strings are supported ATM */
 export type PathLike = string;
@@ -50,6 +51,9 @@ export interface IFileObject<TNumType extends number | bigint = number> extends 
     /** If this is a dummy/placeholder object, then there might be an error as to why */
     error?: ErrorLike;
 
+    /** The filesystem this object lives on */
+    fileSystem: IFileSystem;
+
     /** The fully-qualified path to the file */
     fullPath: string;
 
@@ -81,8 +85,10 @@ export interface IFileObject<TNumType extends number | bigint = number> extends 
      * Returns true if:
      * (1) this is a directory and contains zero files,
      * (2) this is a file with a zero byte link
+     * 
+     * If the object is a directory, but its contents were never read then this returns undefined
      */
-    isEmpty(): boolean;
+    isEmpty(): boolean | undefined;
 
     /**
      * Test to see if the current object matches the criteria
