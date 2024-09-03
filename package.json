@@ -19,6 +19,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "deasync": "^0.1.30",
     "events": "^3.3.0"
   },
   "devDependencies": {
